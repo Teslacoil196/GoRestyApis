@@ -75,8 +75,6 @@ func TestTransferTx(t *testing.T) {
 		_, err = store.GetEntry(context.Background(), ToEntry.ID)
 		require.NoError(t, err)
 
-		// TODO update the user account and balance
-
 		fromAccount := result.FromAccount
 		require.NotEmpty(t, fromAccount)
 		require.Equal(t, fromAccount.ID, account1.ID)
@@ -106,5 +104,63 @@ func TestTransferTx(t *testing.T) {
 	fmt.Println("Balance of accounts After ->", updatedAccount1.Balance, updatedAccount2.Balance)
 	require.Equal(t, account1.Balance-(amount*int64(numberOfConcurrentTransactions)), updatedAccount1.Balance)
 	require.Equal(t, account2.Balance+(amount*int64(numberOfConcurrentTransactions)), updatedAccount2.Balance)
+
+}
+
+func TestTransferTxDeadLock(t *testing.T) {
+	store := NewStore(db)
+
+	account1 := CreateRamdonAccount(t)
+	account2 := CreateRamdonAccount(t)
+	fmt.Println(">> before:", account1.Balance, account2.Balance)
+
+	numberOfConcurrentTransactions := 10
+	amount := int64(10)
+	errr := make(chan error)
+
+	// very important that you send and read from the channels in right order
+	// otherwise we create a deadlock
+	for i := 0; i < numberOfConcurrentTransactions; i++ {
+
+		fromAccountID := account1.ID
+		toAccountID := account2.ID
+
+		if i%2 == 1 {
+			fromAccountID = account2.ID
+			toAccountID = account1.ID
+		}
+
+		txName := fmt.Sprintf(" tx %d", i+1)
+		go func() {
+			// transfer := TransferTxParams{
+			// 	FromAccountID: fromAccountID,
+			// 	ToAccountID:   toAccountID,
+			// 	Amount:        amount,
+			// }
+			ctx := context.WithValue(context.Background(), txKey, txName)
+			_, err := store.TranferTx(ctx, TransferTxParams{
+				FromAccountID: fromAccountID,
+				ToAccountID:   toAccountID,
+				Amount:        amount,
+			})
+
+			errr <- err
+		}()
+	}
+
+	for i := 0; i < numberOfConcurrentTransactions; i++ {
+		err := <-errr
+		require.NoError(t, err)
+
+	}
+
+	updatedAccount1, err := testQuries.GetAccount(context.Background(), account1.ID)
+	require.NoError(t, err)
+
+	updatedAccount2, err := testQuries.GetAccount(context.Background(), account2.ID)
+	require.NoError(t, err)
+	fmt.Println("Balance of accounts After ->", updatedAccount1.Balance, updatedAccount2.Balance)
+	require.Equal(t, account1.Balance, updatedAccount1.Balance)
+	require.Equal(t, account2.Balance, updatedAccount2.Balance)
 
 }
