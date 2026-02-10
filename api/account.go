@@ -1,0 +1,89 @@
+package api
+
+import (
+	db "TeslaCoil196/db/sqlc"
+	"database/sql"
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+)
+
+type CreateAccountServerParams struct {
+	Owner    string `json:"owner" binding:"required"`
+	Currency string `json:"currency" binding:"required,oneof=USD INR EUR JY"`
+}
+
+func (server *Server) createAccount(ctx *gin.Context) {
+	var request CreateAccountServerParams
+
+	err := ctx.ShouldBindJSON(&request)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, errorHandler(err))
+		return
+	}
+
+	arg := db.CreateAccountParams{
+		Owner:    request.Owner,
+		Balance:  int64(0),
+		Currency: request.Currency,
+	}
+
+	account, err := server.db.CreateAccount(ctx, arg)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, errorHandler(err))
+		return
+	}
+	ctx.JSON(http.StatusOK, account)
+}
+
+type GetAccountParam struct {
+	ID int64 `uri:"id" binding:"required,min=1"`
+}
+
+func (server *Server) getAccount(ctx *gin.Context) {
+	var request GetAccountParam
+
+	err := ctx.ShouldBindUri(&request)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, errorHandler(err))
+		return
+	}
+
+	account, err := server.db.GetAccount(ctx, request.ID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			ctx.JSON(http.StatusNotFound, errorHandler(err))
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, errorHandler(err))
+		return
+	}
+	ctx.JSON(http.StatusOK, account)
+}
+
+type ListAccountsParam struct {
+	PageID   int32 `form:"page_id" binding:"required"`
+	PageSize int32 `form:"page_size" binding:"required,min=5,max=10"`
+}
+
+func (server *Server) listAccounts(ctx *gin.Context) {
+	var request ListAccountsParam
+
+	err := ctx.ShouldBindQuery(&request)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, errorHandler(err))
+		return
+	}
+
+	arg := db.ListAccountsParams{
+		Limit:  request.PageSize,
+		Offset: (request.PageID - 1) * request.PageSize,
+	}
+
+	accounts, err := server.db.ListAccounts(ctx, arg)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, errorHandler(err))
+		return
+	}
+	ctx.JSON(http.StatusOK, accounts)
+}
