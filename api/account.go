@@ -3,6 +3,7 @@ package api
 import (
 	db "TeslaCoil196/db/sqlc"
 	"database/sql"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -86,4 +87,66 @@ func (server *Server) listAccounts(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, accounts)
+}
+
+type DeleteAccountParam struct {
+	ID int64 `uri:"id" binding:"required,min=1"`
+}
+
+func (server *Server) deleteAccount(ctx *gin.Context) {
+	var request DeleteAccountParam
+
+	err := ctx.ShouldBindUri(&request)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, errorHandler(err))
+		return
+	}
+
+	err = server.db.DeleteAccount(ctx, request.ID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			ctx.JSON(http.StatusNotFound, errorHandler(err))
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, errorHandler(err))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("Deleted account with id %d", request.ID),
+		"id":      request.ID,
+	})
+}
+
+type UpdateAccountServerParams struct {
+	ID      int64 `json:"id" binding:"required"`
+	Balance int64 `json:"balance" binding:"required"`
+}
+
+func (server *Server) updateAccount(ctx *gin.Context) {
+	var request UpdateAccountServerParams
+
+	err := ctx.ShouldBindJSON(&request)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, errorHandler(err))
+		return
+	}
+
+	account, err := server.db.GetAccount(ctx, request.ID)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, errorHandler(err))
+		return
+	}
+
+	arg := db.UpdateAccountParams{
+		ID:      request.ID,
+		Balance: account.Balance + request.Balance,
+	}
+
+	accountUpdated, err := server.db.UpdateAccount(ctx, arg)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, errorHandler(err))
+		return
+	}
+	ctx.JSON(http.StatusOK, accountUpdated)
 }
