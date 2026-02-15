@@ -11,8 +11,11 @@ import (
 )
 
 func CreateRamdonAccount(t *testing.T) Account {
+
+	user := CreateRamdonUser(t)
+
 	argument := CreateAccountParams{
-		Owner:    util.RandomOwner(),
+		Owner:    user.Username,
 		Balance:  util.RamdonBalnce(),
 		Currency: util.RandomCurrency(),
 	}

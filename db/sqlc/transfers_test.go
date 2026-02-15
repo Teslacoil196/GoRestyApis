@@ -4,7 +4,6 @@ import (
 	"TeslaCoil196/util"
 	"context"
 	"database/sql"
-	"fmt"
 	"testing"
 	"time"
 
@@ -108,14 +107,14 @@ func TestListTransfers(t *testing.T) {
 func TestListTransfersFromAccount(t *testing.T) {
 	trans := []Transfer{}
 
-	fmt.Print(trans)
+	//fmt.Print(trans)
 
 	for i := 0; i < 10; i++ {
 		t := CreateRandomTransfer(t)
 		trans = append(trans, t)
 	}
 
-	fmt.Print(trans)
+	//fmt.Print(trans)
 
 	aggo := ListTransfersFromAccountParams{
 		FromAccountID: TestAccount1.ID,
